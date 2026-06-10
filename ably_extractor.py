@@ -311,43 +311,23 @@ with st.sidebar:
 
     st.space("small")
 
-    # ── Step 1: 북마크릿 ──────────────────────
+    # ── Step 1: 콘솔 안내 ──────────────────────
     with st.container(border=True):
-        st.markdown("**① 북마크릿 설치** (최초 1회)")
-        st.markdown(
-            f"""<a href="{_BOOKMARKLET}"
-                style="display:inline-block;padding:9px 18px;
-                       background:#FF4B4B;color:white;border-radius:8px;
-                       text-decoration:none;font-size:14px;font-weight:600;
-                       cursor:grab;user-select:none;"
-                draggable="true"
-                title="북마크바로 드래그해서 저장하세요">
-                🔖 JWT 복사기
-            </a>""",
-            unsafe_allow_html=True,
+        st.markdown("**① Chrome에서 JWT 가져오기**")
+        st.caption("1. **m.a-bly.com** 열고 로그인 확인")
+        st.caption("2. **F12** 누르기 → **Console** 탭 클릭")
+        st.caption("3. 아래 명령어 붙여넣고 **Enter**")
+        st.code(
+            "document.cookie.match(/ably-jwt-token=([^;]+)/)[1]",
+            language="javascript",
         )
-        st.caption(
-            "위 빨간 버튼을 **북마크바로 드래그**해서 저장하세요.\n\n"
-            "북마크바가 안 보이면: Chrome에서 **Ctrl+Shift+B**"
-        )
+        st.caption("4. 나온 값(eyJ…)을 드래그해서 **Ctrl+C** 복사")
 
     st.space("small")
 
-    # ── Step 2: 북마크릿 사용 안내 ──────────
-    with st.container(border=True):
-        st.markdown("**② JWT 복사**")
-        st.caption(
-            "1. Chrome에서 **m.a-bly.com** 열기\n"
-            "2. 에이블리 **로그인** 확인\n"
-            "3. 북마크바의 **JWT 복사기** 클릭\n"
-            "4. 팝업 뜨면 **Ctrl+A → Ctrl+C** 로 복사"
-        )
-
-    st.space("small")
-
-    # ── Step 3: 붙여넣기 ─────────────────────
+    # ── Step 2: 붙여넣기 ─────────────────────
     jwt_input = st.text_area(
-        "**③ 여기에 붙여넣기** (Ctrl+V)",
+        "**② 여기에 붙여넣기** (Ctrl+V)",
         value=st.session_state.jwt_token,
         height=80,
         placeholder="북마크릿 클릭 후 Ctrl+V …",
