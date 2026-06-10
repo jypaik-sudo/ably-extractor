@@ -289,9 +289,8 @@ _BOOKMARKLET = (
     "javascript:(function(){"
     "var m=document.cookie.match(/ably-jwt-token=([^;]+)/);"
     "if(m){"
-    "navigator.clipboard.writeText(decodeURIComponent(m[1]))"
-    ".then(function(){alert('✅ JWT 토큰이 클립보드에 복사됐습니다!\\n\\n'+"
-    "'에이블리 상품 추출기 앱으로 돌아가서 붙여넣기 해주세요.');});"
+    "var t=decodeURIComponent(m[1]);"
+    "prompt('✅ 아래 토큰을 Ctrl+A → Ctrl+C 로 복사하세요:', t);"
     "}else{"
     "alert('⚠️ 에이블리에 로그인되어 있지 않습니다.\\n\\nm.a-bly.com 에서 로그인 후 다시 클릭해주세요.');"
     "}"
@@ -341,7 +340,7 @@ with st.sidebar:
             "1. Chrome에서 **m.a-bly.com** 열기\n"
             "2. 에이블리 **로그인** 확인\n"
             "3. 북마크바의 **JWT 복사기** 클릭\n"
-            "4. '복사됐습니다' 알림 확인"
+            "4. 팝업 뜨면 **Ctrl+A → Ctrl+C** 로 복사"
         )
 
     st.space("small")
