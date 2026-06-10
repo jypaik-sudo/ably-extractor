@@ -311,17 +311,15 @@ with st.sidebar:
 
     st.space("small")
 
-    # ── Step 1: 콘솔 안내 ──────────────────────
+    # ── Step 1: Application 쿠키 안내 ──────────
     with st.container(border=True):
         st.markdown("**① Chrome에서 JWT 가져오기**")
         st.caption("1. **m.a-bly.com** 열고 로그인 확인")
-        st.caption("2. **F12** 누르기 → **Console** 탭 클릭")
-        st.caption("3. 아래 명령어 붙여넣고 **Enter**")
-        st.code(
-            "document.cookie.match(/ably-jwt-token=([^;]+)/)[1]",
-            language="javascript",
-        )
-        st.caption("4. 나온 값(eyJ…)을 드래그해서 **Ctrl+C** 복사")
+        st.caption("2. **F12** 누르기")
+        st.caption("3. 상단 탭 중 **Application** 클릭")
+        st.caption("4. 왼쪽 메뉴 → **Cookies** → **https://m.a-bly.com** 클릭")
+        st.caption("5. 목록에서 **ably-jwt-token** 찾기")
+        st.caption("6. **Value 셀** 클릭 → **Ctrl+A → Ctrl+C** 복사")
 
     st.space("small")
 
