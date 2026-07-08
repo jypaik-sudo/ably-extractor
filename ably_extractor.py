@@ -36,6 +36,9 @@ _defaults = {
     "event_results": None,
     "event_title": "",
     "event_count": 0,
+    "market_results": None,
+    "market_event_title": "",
+    "market_count": 0,
 }
 for k, v in _defaults.items():
     if k not in st.session_state:
@@ -63,6 +66,15 @@ def to_csv_bytes(rows: list) -> bytes:
     writer = csv.writer(buf)
     writer.writerow(["랭킹", "SNO", "브랜드명", "상품명"])
     writer.writerows(rows)
+    return ("﻿" + buf.getvalue()).encode("utf-8")
+
+
+def to_market_csv_bytes(markets: list) -> bytes:
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["No", "market_name"])
+    for i, m in enumerate(markets, 1):
+        writer.writerow([i, m])
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
@@ -283,6 +295,130 @@ def extract_event(url: str, jwt: str):
 
 
 # ─────────────────────────────────────────────
+# Market Extractor
+# ─────────────────────────────────────────────
+def extract_markets(url: str, jwt: str):
+    """이벤트 유의사항에서 '적용 가능 마켓' 리스트 추출.
+
+    지원 패턴:
+      - noticeTool : "적용 가능 마켓 : 마켓A,마켓B,…"
+      - accordionTool > noticeTool : 동일
+      - paragraph 자체가 순수 마켓 리스트 (키워드 없이 콤마만)
+      - 키워드 블록과 리스트 블록이 별도 children으로 분리된 경우
+    """
+    import json as _json
+
+    m = re.search(r"/events/([a-zA-Z0-9]+)", url)
+    if not m:
+        st.error("URL에서 이벤트 ID를 찾을 수 없습니다. URL을 다시 확인해주세요.")
+        return None, ""
+
+    event_id = m.group(1)
+    headers = get_headers(jwt)
+    progress = st.progress(0.2, text="이벤트 데이터 가져오는 중...")
+
+    try:
+        resp = requests.get(
+            f"https://api.a-bly.com/webview/events/{event_id}/",
+            headers=headers, timeout=15,
+        )
+        if resp.status_code == 401:
+            st.error("🔒 JWT 토큰이 만료됐습니다. 사이드바에서 다시 가져와주세요.")
+            progress.empty()
+            return None, ""
+        resp.raise_for_status()
+        outer = resp.json()
+    except requests.RequestException as e:
+        st.error(f"네트워크 오류: {e}")
+        progress.empty()
+        return None, ""
+
+    progress.progress(0.6, text="마켓 리스트 파싱 중...")
+
+    event = outer.get("event", outer)
+    event_title = event.get("name", "이벤트")
+
+    try:
+        blocks = _json.loads(event.get("page_content", "[]"))
+    except Exception:
+        st.error("page_content 파싱 실패. 지원되지 않는 이벤트 형식입니다.")
+        progress.empty()
+        return None, ""
+
+    # 모든 문자열 필드를 재귀 수집
+    candidates = []
+
+    def _rec(o):
+        if isinstance(o, dict):
+            for v in o.values():
+                _rec(v)
+        elif isinstance(o, list):
+            for x in o:
+                _rec(x)
+        elif isinstance(o, str) and "," in o and len(o) > 200:
+            has_kw = any(
+                kw in o for kw in ["적용 가능 마켓", "쿠폰 적용마켓", "적용마켓"]
+            )
+            candidates.append((len(o), has_kw, o))
+
+    _rec(blocks)
+
+    section = None
+
+    # 1순위: 키워드 있고 콜론 뒤에 리스트가 이어지는 경우
+    for _, has_kw, c in sorted(candidates, key=lambda x: -x[0]):
+        if not has_kw:
+            continue
+        for kw in ["적용 가능 마켓", "쿠폰 적용마켓", "적용마켓"]:
+            if kw not in c:
+                continue
+            rest = c[c.find(kw):]
+            if ":" not in rest:
+                continue
+            after = rest.split(":", 1)[1]
+            boundary = re.search(r"\n\s*[\[•]", after)
+            seg = after[: boundary.start()] if boundary else after
+            if seg.count(",") > 5:
+                section = seg
+                break
+        if section:
+            break
+
+    # 2순위: content 전체가 마켓 리스트인 가장 긴 non-keyword 블록
+    if section is None:
+        pure = [(l, c) for l, has_kw, c in candidates if not has_kw]
+        if pure:
+            section = max(pure, key=lambda x: x[0])[1]
+
+    if section is None:
+        st.error(
+            "마켓 리스트를 찾지 못했습니다. "
+            "유의사항에 '적용 가능 마켓' 항목이 있는 이벤트 URL인지 확인해주세요."
+        )
+        progress.empty()
+        return None, ""
+
+    section = section.replace("\n", "").replace("\r", "")
+    section = section.replace('"', "").replace("“", "").replace("”", "")
+
+    markets = [x.strip() for x in section.split(",")]
+    markets = [x for x in markets if x]
+
+    seen: set = set()
+    uniq: list = []
+    for x in markets:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+
+    progress.progress(1.0, text="완료!")
+    time.sleep(0.3)
+    progress.empty()
+
+    return uniq, event_title
+
+
+# ─────────────────────────────────────────────
 # Bookmarklet JS (어느 PC에서나 동작)
 # ─────────────────────────────────────────────
 _BOOKMARKLET = (
@@ -360,16 +496,17 @@ with st.sidebar:
 # Header
 # ─────────────────────────────────────────────
 st.title("에이블리 상품 추출기")
-st.caption("실시간 랭킹 · 이벤트 상품 목록을 CSV로 추출합니다")
+st.caption("실시간 랭킹 · 이벤트 상품 · 적용 가능 마켓 목록을 CSV로 추출합니다")
 
 st.space("small")
 
 # ─────────────────────────────────────────────
 # Tabs
 # ─────────────────────────────────────────────
-tab_ranking, tab_event = st.tabs([
+tab_ranking, tab_event, tab_market = st.tabs([
     ":material/bar_chart: 실시간 랭킹 추출",
     ":material/campaign: 이벤트 상품 추출",
+    ":material/store: 적용 가능 마켓 추출",
 ])
 
 # ══════════════════════════════════════════════
@@ -467,6 +604,93 @@ with tab_ranking:
 
 
 # ══════════════════════════════════════════════
+# Tab 3 — 적용 가능 마켓 추출
+# ══════════════════════════════════════════════
+with tab_market:
+    st.subheader("적용 가능 마켓 추출", anchor=False)
+    st.caption("이벤트 유의사항의 '적용 가능 마켓' 전체 목록을 CSV로 추출합니다")
+
+    st.space("small")
+
+    market_url = st.text_input(
+        "프로모션 이벤트 URL",
+        placeholder="https://m.a-bly.com/events/22760",
+        key="market_url",
+    )
+
+    with st.container(horizontal=True):
+        run_market = st.button(
+            "추출 시작",
+            icon=":material/play_arrow:",
+            type="primary",
+            key="btn_market",
+        )
+        if st.session_state.market_results:
+            st.button(
+                "초기화",
+                icon=":material/refresh:",
+                key="btn_market_clear",
+                on_click=lambda: st.session_state.update(
+                    market_results=None, market_event_title="", market_count=0
+                ),
+            )
+
+    if run_market:
+        if not market_url:
+            st.error("이벤트 URL을 입력해주세요.", icon=":material/error:")
+        elif not st.session_state.jwt_token:
+            st.error(
+                "JWT 토큰이 필요합니다. 사이드바에서 토큰을 가져와주세요.",
+                icon=":material/key_off:",
+            )
+        else:
+            markets, title = extract_markets(market_url, st.session_state.jwt_token)
+            if markets is not None:
+                st.session_state.market_results = markets
+                st.session_state.market_event_title = title
+                st.session_state.market_count = len(markets)
+                st.toast(f"{len(markets)}개 마켓 추출 완료!", icon=":material/check_circle:")
+
+    if st.session_state.market_results:
+        markets = st.session_state.market_results
+        title = st.session_state.market_event_title
+        safe_title = re.sub(r'[\\/:*?"<>|]', "_", title)[:40]
+        short_title = title if len(title) <= 20 else title[:19] + "…"
+
+        st.space("small")
+
+        col_m1, col_m2, col_dl = st.columns([1, 1, 2])
+        col_m1.metric("총 마켓 수", f"{len(markets):,}개")
+        col_m2.metric("이벤트", short_title)
+
+        with col_dl:
+            csv_bytes = to_market_csv_bytes(markets)
+            st.download_button(
+                label="CSV 다운로드",
+                data=csv_bytes,
+                file_name=f"ably_markets_{safe_title}.csv",
+                mime="text/csv",
+                icon=":material/download:",
+                type="primary",
+                key="dl_market",
+            )
+
+        df_m = pd.DataFrame(
+            [(i + 1, m) for i, m in enumerate(markets)],
+            columns=["No", "마켓명"],
+        )
+        st.dataframe(
+            df_m,
+            height=520,
+            hide_index=True,
+            column_config={
+                "No": st.column_config.NumberColumn(width="small"),
+                "마켓명": st.column_config.TextColumn(width="large"),
+            },
+        )
+
+
+# ══════════════════════════════════════════════
 # Tab 2 — 이벤트
 # ══════════════════════════════════════════════
 with tab_event:
@@ -549,5 +773,92 @@ with tab_event:
                 "SNO": st.column_config.TextColumn(width="medium"),
                 "브랜드명": st.column_config.TextColumn(width="medium"),
                 "상품명": st.column_config.TextColumn(width="large"),
+            },
+        )
+
+
+# ══════════════════════════════════════════════
+# Tab 3 — 적용 가능 마켓 추출
+# ══════════════════════════════════════════════
+with tab_market:
+    st.subheader("적용 가능 마켓 추출", anchor=False)
+    st.caption("이벤트 유의사항의 '적용 가능 마켓' 전체 목록을 CSV로 추출합니다")
+
+    st.space("small")
+
+    market_url = st.text_input(
+        "프로모션 이벤트 URL",
+        placeholder="https://m.a-bly.com/events/22760",
+        key="market_url",
+    )
+
+    with st.container(horizontal=True):
+        run_market = st.button(
+            "추출 시작",
+            icon=":material/play_arrow:",
+            type="primary",
+            key="btn_market",
+        )
+        if st.session_state.market_results:
+            st.button(
+                "초기화",
+                icon=":material/refresh:",
+                key="btn_market_clear",
+                on_click=lambda: st.session_state.update(
+                    market_results=None, market_event_title="", market_count=0
+                ),
+            )
+
+    if run_market:
+        if not market_url:
+            st.error("이벤트 URL을 입력해주세요.", icon=":material/error:")
+        elif not st.session_state.jwt_token:
+            st.error(
+                "JWT 토큰이 필요합니다. 사이드바에서 토큰을 가져와주세요.",
+                icon=":material/key_off:",
+            )
+        else:
+            markets, title = extract_markets(market_url, st.session_state.jwt_token)
+            if markets is not None:
+                st.session_state.market_results = markets
+                st.session_state.market_event_title = title
+                st.session_state.market_count = len(markets)
+                st.toast(f"{len(markets)}개 마켓 추출 완료!", icon=":material/check_circle:")
+
+    if st.session_state.market_results:
+        markets = st.session_state.market_results
+        title = st.session_state.market_event_title
+        safe_title = re.sub(r'[\\/:*?"<>|]', "_", title)[:40]
+        short_title = title if len(title) <= 20 else title[:19] + "…"
+
+        st.space("small")
+
+        col_m1, col_m2, col_dl = st.columns([1, 1, 2])
+        col_m1.metric("총 마켓 수", f"{len(markets):,}개")
+        col_m2.metric("이벤트", short_title)
+
+        with col_dl:
+            csv_bytes = to_market_csv_bytes(markets)
+            st.download_button(
+                label="CSV 다운로드",
+                data=csv_bytes,
+                file_name=f"ably_markets_{safe_title}.csv",
+                mime="text/csv",
+                icon=":material/download:",
+                type="primary",
+                key="dl_market",
+            )
+
+        df_m = pd.DataFrame(
+            [(i + 1, m) for i, m in enumerate(markets)],
+            columns=["No", "마켓명"],
+        )
+        st.dataframe(
+            df_m,
+            height=520,
+            hide_index=True,
+            column_config={
+                "No": st.column_config.NumberColumn(width="small"),
+                "마켓명": st.column_config.TextColumn(width="large"),
             },
         )
