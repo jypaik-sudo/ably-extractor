@@ -14,6 +14,7 @@ import time
 import os
 import tempfile
 import pandas as pd
+from typing import Optional
 from urllib.parse import quote, urlparse, parse_qs
 
 # ─────────────────────────────────────────────
@@ -78,7 +79,7 @@ def to_market_csv_bytes(markets: list) -> bytes:
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
-def fetch_jwt_from_browser() -> str | None:
+def fetch_jwt_from_browser() -> Optional[str]:
     """browser-harness를 통해 Chrome에서 JWT 자동 추출 (로컬 전용)."""
     script = """
 import re
