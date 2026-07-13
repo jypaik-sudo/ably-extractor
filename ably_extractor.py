@@ -1,4 +1,4 @@
-﻿"""
+"""
 에이블리 상품 추출기
 실시간 랭킹 / 이벤트 상품을 CSV로 추출합니다.
 실행: streamlit run ably_extractor.py
