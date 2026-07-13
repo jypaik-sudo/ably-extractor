@@ -1,4 +1,4 @@
-"""
+﻿"""
 에이블리 상품 추출기
 실시간 랭킹 / 이벤트 상품을 CSV로 추출합니다.
 실행: streamlit run ably_extractor.py
@@ -445,7 +445,7 @@ with st.sidebar:
     else:
         st.badge("토큰 없음", icon=":material/key_off:", color="red")
 
-    st.space("small")
+
 
     # ── Step 1: Application 쿠키 안내 ──────────
     with st.container(border=True):
@@ -457,7 +457,7 @@ with st.sidebar:
         st.caption("5. 목록에서 **ably-jwt-token** 찾기")
         st.caption("6. **Value 셀** 클릭 → **Ctrl+A → Ctrl+C** 복사")
 
-    st.space("small")
+
 
     # ── Step 2: 붙여넣기 ─────────────────────
     jwt_input = st.text_area(
@@ -473,7 +473,7 @@ with st.sidebar:
     # ── 이 기기 전용: browser-harness 자동 추출 ──
     bh_available = os.path.exists(BH_PATH)
     if bh_available:
-        st.space("small")
+    
         if st.button(
             "이 기기: Chrome에서 자동 가져오기",
             icon=":material/sync:",
@@ -498,7 +498,7 @@ with st.sidebar:
 st.title("에이블리 상품 추출기")
 st.caption("실시간 랭킹 · 이벤트 상품 · 적용 가능 마켓 목록을 CSV로 추출합니다")
 
-st.space("small")
+
 
 # ─────────────────────────────────────────────
 # Tabs
@@ -516,7 +516,7 @@ with tab_ranking:
     st.subheader("실시간 랭킹 상품 추출", anchor=False)
     st.caption("에이블리 카테고리 랭킹 URL → 전체 상품 SNO · 브랜드 · 상품명 추출")
 
-    st.space("small")
+
 
     col_url, col_label = st.columns([4, 1])
     with col_url:
@@ -533,13 +533,15 @@ with tab_ranking:
             help="CSV 파일명에 사용됩니다 (예: ably_screen_스킨케어.csv)",
         )
 
-    with st.container(horizontal=True):
+    _col_r1, _col_r2 = st.columns([1, 4])
+    with _col_r1:
         run_ranking = st.button(
             "추출 시작",
             icon=":material/play_arrow:",
             type="primary",
             key="btn_ranking",
         )
+    with _col_r2:
         if st.session_state.ranking_results:
             st.button(
                 "초기화",
@@ -571,7 +573,7 @@ with tab_ranking:
         rows = st.session_state.ranking_results
         label = st.session_state.ranking_label
 
-        st.space("small")
+    
 
         col_m1, col_m2, col_dl = st.columns([1, 1, 2])
         col_m1.metric("총 상품 수", f"{len(rows):,}개")
@@ -610,7 +612,7 @@ with tab_event:
     st.subheader("이벤트 상품 추출", anchor=False)
     st.caption("'전체보기 / 펼쳐보기' 포함 모든 세그먼트 상품을 추출합니다")
 
-    st.space("small")
+
 
     event_url = st.text_input(
         "이벤트 URL",
@@ -618,13 +620,15 @@ with tab_event:
         key="event_url",
     )
 
-    with st.container(horizontal=True):
+    _col_e1, _col_e2 = st.columns([1, 4])
+    with _col_e1:
         run_event = st.button(
             "추출 시작",
             icon=":material/play_arrow:",
             type="primary",
             key="btn_event",
         )
+    with _col_e2:
         if st.session_state.event_results:
             st.button(
                 "초기화",
@@ -657,7 +661,7 @@ with tab_event:
         title = st.session_state.event_title
         safe_title = re.sub(r'[\\/:*?"<>|]', "_", title)[:40]
 
-        st.space("small")
+    
 
         short_title = title if len(title) <= 20 else title[:19] + "…"
         col_m1, col_m2, col_dl = st.columns([1, 1, 2])
@@ -697,7 +701,7 @@ with tab_market:
     st.subheader("적용 가능 마켓 추출", anchor=False)
     st.caption("이벤트 유의사항의 '적용 가능 마켓' 전체 목록을 CSV로 추출합니다")
 
-    st.space("small")
+
 
     market_url = st.text_input(
         "프로모션 이벤트 URL",
@@ -705,13 +709,15 @@ with tab_market:
         key="market_url",
     )
 
-    with st.container(horizontal=True):
+    _col_m1, _col_m2 = st.columns([1, 4])
+    with _col_m1:
         run_market = st.button(
             "추출 시작",
             icon=":material/play_arrow:",
             type="primary",
             key="btn_market",
         )
+    with _col_m2:
         if st.session_state.market_results:
             st.button(
                 "초기화",
@@ -744,7 +750,7 @@ with tab_market:
         safe_title = re.sub(r'[\\/:*?"<>|]', "_", title)[:40]
         short_title = title if len(title) <= 20 else title[:19] + "…"
 
-        st.space("small")
+    
 
         col_m1, col_m2, col_dl = st.columns([1, 1, 2])
         col_m1.metric("총 마켓 수", f"{len(markets):,}개")
